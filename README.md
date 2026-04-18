@@ -47,17 +47,59 @@ graph TD
 - **Browser Engine** -- Chromium-based browser via Playwright for full DOM rendering, form field discovery, screenshot capture, and WebSocket traffic observation
 - **Render Batch Parser** -- Binary parser for Blazor's render batch format to extract component trees, event handler IDs, and form elements
 
-## Prerequisites
+## Install
 
-- [.NET 8.0 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)
-- [Playwright browsers](https://playwright.dev/dotnet/docs/intro) (for Browser Engine feature)
+BlazeCannon ships in three flavors. Pick one:
 
-## Quick Start
+| Platform | Artifact | How to get it |
+|----------|----------|---------------|
+| **Docker / Linux container** | OCI image | `docker pull ghcr.io/mathewulanowski/blazecannon:latest` |
+| **Windows** | Self-contained `.exe` (no .NET install needed) | `blazecannon-vX.Y.Z-win-x64.zip` from the [Releases page](https://github.com/MathewUlanowski/BlazeCannon/releases) |
+| **Linux** | Self-contained binary (no .NET install needed) | `blazecannon-vX.Y.Z-linux-x64.tar.gz` from the [Releases page](https://github.com/MathewUlanowski/BlazeCannon/releases) |
 
-### Local Development
+### Run — Docker
+
+```bash
+docker run -p 8080:8080 -p 5001:5001 ghcr.io/mathewulanowski/blazecannon:latest
+# UI:    http://localhost:8080
+# Proxy: http://localhost:5001
+```
+
+### Run — Windows standalone
+
+Unzip, then run the `.exe` directly:
+
+```powershell
+Expand-Archive blazecannon-v0.3.1-win-x64.zip -DestinationPath blazecannon
+cd blazecannon\win-x64
+.\BlazeCannon.App.exe
+# UI:    http://localhost:8080
+# Proxy: http://localhost:5001
+```
+
+### Run — Linux standalone
+
+```bash
+tar -xzf blazecannon-v0.3.1-linux-x64.tar.gz
+cd linux-x64
+./BlazeCannon.App
+# UI:    http://localhost:8080
+# Proxy: http://localhost:5001
+```
+
+Override the default ports with environment variables:
+
+```bash
+BLAZECANNON_UI_PORT=9000 BLAZECANNON_PROXY_PORT=9001 ./BlazeCannon.App
+```
+
+> **Playwright browsers** — the Browser Engine downloads Chromium to `~/.cache/ms-playwright` on first use. The Docker image ships with Chromium pre-installed; standalone builds fetch it on demand.
+
+## Build from source
 
 ```bash
 # Clone and build
+git clone https://github.com/MathewUlanowski/BlazeCannon.git
 cd BlazeCannon
 dotnet restore
 dotnet build
@@ -67,21 +109,12 @@ pwsh BlazeCannon.Browser/bin/Debug/net8.0/playwright.ps1 install chromium
 
 # Run the UI
 dotnet run --project BlazeCannon.App
-# Open http://localhost:5099
+# Open http://localhost:8080
 ```
 
-### Docker
+**Prerequisites for building:** [.NET 8.0 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)
 
-BlazeCannon exposes two ports: `8080` (UI) and `5001` (MITM proxy). Both must be published so the host Chromium instance can route through the proxy.
-
-```bash
-docker build -t blazecannon .
-docker run -p 8080:8080 -p 5001:5001 blazecannon
-# UI:    http://localhost:8080
-# Proxy: http://localhost:5001  (configure your browser to use this as HTTP proxy)
-```
-
-#### Pointing Chromium at the proxy
+### Pointing Chromium at the proxy
 
 Launch an isolated Chrome window routed through the BlazeCannon proxy (won't touch your main profile):
 
@@ -94,7 +127,7 @@ chrome.exe \
   about:blank
 ```
 
-#### Reaching a target running on the host (e.g. FireAnt)
+### Reaching a target running on the host (e.g. FireAnt)
 
 From **inside** the BlazeCannon container, `localhost` refers to the container itself. To reach a target running on the Docker host:
 
