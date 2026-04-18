@@ -1,0 +1,58 @@
+.bc-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.bc-page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  h2 { margin: 0; font-size: 20px; font-weight: 700; }
+}
+
+.bc-dash-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 16px;
+}
+
+::ng-deep .bc-dash-card {
+  background: var(--bc-surface);
+  border: 1px solid var(--bc-border);
+
+  .p-card-title { font-size: 14px; color: var(--bc-text-dim); text-transform: uppercase; letter-spacing: 0.6px; }
+  .p-card-content { padding-top: 4px !important; }
+}
+
+::ng-deep .bc-dash-card-wide { grid-column: span 2; }
+
+.bc-stat-row { margin-bottom: 10px; }
+.bc-stat-kv {
+  display: flex; justify-content: space-between;
+  font-size: 13px; padding: 2px 0;
+  .k { color: var(--bc-text-dim); }
+  .v { color: var(--bc-text); font-weight: 600; font-family: 'JetBrains Mono', monospace; }
+}
+
+.bc-stat-big {
+  font-size: 36px;
+  font-weight: 700;
+  color: var(--bc-accent);
+  line-height: 1.1;
+  font-family: 'JetBrains Mono', monospace;
+}
+.bc-stat-sub { font-size: 12px; color: var(--bc-text-dim); margin-top: 4px; }
+
+.bc-howto {
+  margin: 0; padding-left: 18px;
+  li { margin: 6px 0; font-size: 13.5px; color: var(--bc-text); }
+  code {
+    background: var(--bc-surface-2); padding: 1px 6px;
+    border-radius: 3px; font-family: 'JetBrains Mono', monospace;
+    color: var(--bc-accent);
+  }
+}
+
+.bc-loading { color: var(--bc-text-dim); font-size: 13px; }
