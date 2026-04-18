@@ -23,6 +23,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 ### Removed
 - `BlazeCannon.App` project and all its Razor pages, shared components, services, and wwwroot assets. This is a breaking change — there is no in-place upgrade path; users pull the new Docker image or binaries from the `v0.4.0` release.
 
+### Fixed
+- Traffic Inspector table now scrolls properly when entries overflow the viewport. Replaced PrimeNG's `scrollHeight="flex"` (which silently broke through the nested flex + grid ancestors) with a calc-based fixed scroll region.
+
+### Added — UX
+- Arrow Up / Arrow Down navigate row selection in the Traffic Inspector instead of scrolling the page. Keys are ignored while a filter input is focused, and the newly-selected row is scrolled into view.
+
 ## [0.3.2] - 2026-04-18
 
 ### Added

@@ -3,6 +3,7 @@ import {
   ChangeDetectorRef,
   Component,
   DestroyRef,
+  HostListener,
   OnInit,
   inject,
 } from '@angular/core';
@@ -173,6 +174,40 @@ export class TrafficInspectorComponent implements OnInit {
   closeDetail(): void {
     this.selected = null;
     this.cdr.markForCheck();
+  }
+
+  @HostListener('document:keydown', ['$event'])
+  onKeydown(ev: KeyboardEvent): void {
+    if (ev.key !== 'ArrowUp' && ev.key !== 'ArrowDown') return;
+
+    // Don't intercept while the user is typing in an input / textarea / select
+    const target = ev.target as HTMLElement | null;
+    const tag = target?.tagName?.toLowerCase();
+    if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
+    if (target?.isContentEditable) return;
+    if (this.filtered.length === 0) return;
+
+    ev.preventDefault();
+
+    const curIdx = this.selected ? this.filtered.indexOf(this.selected) : -1;
+    let nextIdx: number;
+    if (ev.key === 'ArrowDown') {
+      nextIdx = curIdx < 0 ? 0 : Math.min(curIdx + 1, this.filtered.length - 1);
+    } else {
+      nextIdx =
+        curIdx < 0 ? this.filtered.length - 1 : Math.max(curIdx - 1, 0);
+    }
+    if (nextIdx === curIdx) return;
+
+    this.selected = this.filtered[nextIdx];
+    this.cdr.markForCheck();
+
+    // Scroll the newly-selected row into view after render.
+    queueMicrotask(() => {
+      document
+        .querySelector('.bc-traffic-table tr.bc-selected')
+        ?.scrollIntoView({ block: 'nearest' });
+    });
   }
 
   // ---- Toolbar actions -----------------------------------------------------
