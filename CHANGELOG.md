@@ -6,6 +6,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-04-18
+
+### Documentation
+- README rewritten for the post-migration architecture: updated Mermaid diagram (Angular → API → proxy), Projects table now lists `BlazeCannon.Api` and `web/`, replaced `BlazeCannon.App` references in run commands with `BlazeCannon.Api`, and bumped example version tags to `v0.4.0`.
+- New "Dev — run the backend and frontend side-by-side" section covering `dotnet run --project BlazeCannon.Api` alongside `cd web && npm start`, including a note on the Angular dev proxy forwarding `/api` and `/hubs`.
+- Production build snippet showing the single-file publish flags (`IncludeAllContentForSelfExtract`, `EnableCompressionInSingleFile`) plus `npm run build`.
+- Chromium launch snippet now includes `--proxy-bypass-list="<-loopback>"` with a callout explaining why it's required when the target runs on the host loopback — without the flag, Chrome silently skips the proxy for `localhost` / `127.0.0.1`.
+- "Reaching the target" table reshaped around BlazeCannon's runtime (native vs Docker) rather than assuming a container.
+
 ## [0.4.0] - 2026-04-18
 
 ### Changed — **BREAKING**
