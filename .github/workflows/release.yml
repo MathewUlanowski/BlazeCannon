@@ -58,6 +58,52 @@ jobs:
             exit 1
           fi
 
+      - name: Extract release notes from CHANGELOG.md
+        id: notes
+        shell: bash
+        env:
+          VERSION: ${{ steps.v.outputs.version }}
+        run: |
+          set -euo pipefail
+          if [ ! -f CHANGELOG.md ]; then
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          awk -v ver="$VERSION" '
+            $0 ~ "^## \\[" ver "\\]" { found = 1; next }
+            found && /^## \[/ { exit }
+            found { print }
+          ' CHANGELOG.md > release-notes.md
+
+          # Strip leading blank lines
+          sed -i '/./,$!d' release-notes.md
+
+          if [ -s release-notes.md ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "---- Extracted release notes for $VERSION ----"
+            cat release-notes.md
+            echo "-----------------------------------------------"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "No CHANGELOG.md section found for [$VERSION]"
+          fi
+
+      - name: Enforce CHANGELOG entry on main
+        if: github.ref == 'refs/heads/main' && steps.notes.outputs.exists != 'true'
+        shell: bash
+        run: |
+          echo "::error::No '## [${{ steps.v.outputs.version }}]' section found in CHANGELOG.md. Add one before merging to main."
+          exit 1
+
+      - name: Upload release notes artifact
+        if: steps.notes.outputs.exists == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-notes
+          path: release-notes.md
+          if-no-files-found: error
+
   build:
     needs: version
     runs-on: ubuntu-latest
@@ -165,8 +211,26 @@ jobs:
       - name: Download build artifacts
         uses: actions/download-artifact@v4
         with:
+          pattern: bin-*
           path: artifacts
           merge-multiple: true
+
+      - name: Download release notes (if present)
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          name: release-notes
+          path: notes
+
+      - name: Resolve release body source
+        id: body
+        shell: bash
+        run: |
+          if [ -f notes/release-notes.md ] && [ -s notes/release-notes.md ]; then
+            echo "body_path=notes/release-notes.md" >> "$GITHUB_OUTPUT"
+          else
+            echo "body_path=" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: List collected artifacts
         run: ls -la artifacts
@@ -178,6 +242,7 @@ jobs:
           name: ${{ needs.version.outputs.tag }}
           target_commitish: ${{ github.sha }}
           prerelease: ${{ needs.version.outputs.prerelease == 'true' }}
-          generate_release_notes: true
+          body_path: ${{ steps.body.outputs.body_path }}
+          generate_release_notes: ${{ steps.body.outputs.body_path == '' }}
           files: |
             artifacts/*
