@@ -54,7 +54,7 @@ BlazeCannon ships in three flavors. Pick one:
 | Platform | Artifact | How to get it |
 |----------|----------|---------------|
 | **Docker / Linux container** | OCI image | `docker pull ghcr.io/mathewulanowski/blazecannon:latest` |
-| **Windows** | Self-contained `.exe` (no .NET install needed) | `blazecannon-vX.Y.Z-win-x64.zip` from the [Releases page](https://github.com/MathewUlanowski/BlazeCannon/releases) |
+| **Windows** | Self-contained `.exe` (no .NET install needed) | `blazecannon-vX.Y.Z-win-x64.exe` from the [Releases page](https://github.com/MathewUlanowski/BlazeCannon/releases) |
 | **Linux** | Self-contained binary (no .NET install needed) | `blazecannon-vX.Y.Z-linux-x64.tar.gz` from the [Releases page](https://github.com/MathewUlanowski/BlazeCannon/releases) |
 
 ### Run — Docker
@@ -67,12 +67,10 @@ docker run -p 8080:8080 -p 5001:5001 ghcr.io/mathewulanowski/blazecannon:latest
 
 ### Run — Windows standalone
 
-Unzip, then run the `.exe` directly:
+Download the `.exe` and run it directly — everything is bundled:
 
 ```powershell
-Expand-Archive blazecannon-v0.3.1-win-x64.zip -DestinationPath blazecannon
-cd blazecannon\win-x64
-.\BlazeCannon.App.exe
+.\blazecannon-v0.3.1-win-x64.exe
 # UI:    http://localhost:8080
 # Proxy: http://localhost:5001
 ```
@@ -81,7 +79,6 @@ cd blazecannon\win-x64
 
 ```bash
 tar -xzf blazecannon-v0.3.1-linux-x64.tar.gz
-cd linux-x64
 ./BlazeCannon.App
 # UI:    http://localhost:8080
 # Proxy: http://localhost:5001

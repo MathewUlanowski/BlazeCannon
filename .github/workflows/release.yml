@@ -66,9 +66,11 @@ jobs:
       matrix:
         include:
           - rid: win-x64
-            archive: zip
+            binary: BlazeCannon.App.exe
+            package: exe
           - rid: linux-x64
-            archive: tar.gz
+            binary: BlazeCannon.App
+            package: tar.gz
     steps:
       - uses: actions/checkout@v4
 
@@ -76,7 +78,7 @@ jobs:
         with:
           dotnet-version: '8.0.x'
 
-      - name: Publish ${{ matrix.rid }} (self-contained, single-file)
+      - name: Publish ${{ matrix.rid }} (fully embedded single-file)
         run: |
           dotnet publish BlazeCannon.App/BlazeCannon.App.csproj \
             -c Release \
@@ -84,24 +86,32 @@ jobs:
             --self-contained true \
             -p:PublishSingleFile=true \
             -p:IncludeNativeLibrariesForSelfExtract=true \
+            -p:IncludeAllContentForSelfExtract=true \
+            -p:EnableCompressionInSingleFile=true \
+            -p:DebugType=None \
+            -p:DebugSymbols=false \
             -o ./publish/${{ matrix.rid }}
 
-      - name: Package archive
+      - name: Package release asset
         shell: bash
         env:
           TAG: ${{ needs.version.outputs.tag }}
           RID: ${{ matrix.rid }}
-          ARCHIVE: ${{ matrix.archive }}
+          PACKAGE: ${{ matrix.package }}
+          BIN: ${{ matrix.binary }}
         run: |
           set -euo pipefail
           NAME="blazecannon-${TAG}-${RID}"
-          cd publish
-          if [ "$ARCHIVE" = "zip" ]; then
-            zip -r "../${NAME}.zip" "${RID}"
+          cd publish/${RID}
+          if [ "$PACKAGE" = "exe" ]; then
+            # Windows: rename the single-file exe — no archive needed
+            cp "${BIN}" "../../${NAME}.exe"
           else
-            tar -czf "../${NAME}.tar.gz" "${RID}"
+            # Linux: wrap in tar.gz so the +x bit survives a GitHub download
+            chmod +x "${BIN}"
+            tar -czf "../../${NAME}.tar.gz" "${BIN}"
           fi
-          ls -la ../${NAME}.*
+          ls -la ../../${NAME}*
 
       - uses: actions/upload-artifact@v4
         with:
