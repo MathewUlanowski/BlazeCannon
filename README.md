@@ -72,10 +72,48 @@ dotnet run --project BlazeCannon.App
 
 ### Docker
 
+BlazeCannon exposes two ports: `8080` (UI) and `5001` (MITM proxy). Both must be published so the host Chromium instance can route through the proxy.
+
 ```bash
 docker build -t blazecannon .
-docker run -p 8080:8080 blazecannon
-# Open http://localhost:8080
+docker run -p 8080:8080 -p 5001:5001 blazecannon
+# UI:    http://localhost:8080
+# Proxy: http://localhost:5001  (configure your browser to use this as HTTP proxy)
+```
+
+#### Pointing Chromium at the proxy
+
+Launch an isolated Chrome window routed through the BlazeCannon proxy (won't touch your main profile):
+
+```bash
+chrome.exe \
+  --proxy-server="http://localhost:5001" \
+  --user-data-dir="%TEMP%\blazecannon-chrome-profile" \
+  --ignore-certificate-errors \
+  --no-first-run --no-default-browser-check --new-window \
+  about:blank
+```
+
+#### Reaching a target running on the host (e.g. FireAnt)
+
+From **inside** the BlazeCannon container, `localhost` refers to the container itself. To reach a target running on the Docker host:
+
+| Scenario | Host address to use from container |
+|----------|------------------------------------|
+| Docker Desktop (Windows/Mac) | `http://host.docker.internal:<port>` |
+| Linux (default bridge) | `http://172.17.0.1:<port>` |
+| Another container on a shared user-defined network | `http://<container-name>:<port>` |
+
+Example: if FireAnt is running via `docker run -p 5000:5000 fireant`, the BlazeCannon container reaches it at `http://host.docker.internal:5000`.
+
+```mermaid
+graph LR
+    Chrome[Chromium<br/>host :any] -->|HTTP proxy<br/>localhost:5001| BC[BlazeCannon<br/>container]
+    BC -->|host.docker.internal:5000| FA[FireAnt<br/>container or host]
+
+    style Chrome fill:#58a6ff,color:#0d1117
+    style BC fill:#d29922,color:#0d1117
+    style FA fill:#f85149,color:#fff
 ```
 
 ## Usage

@@ -10,6 +10,11 @@ public class BlazorMessage
     public object?[]? DecodedArguments { get; set; }
     public int? SequenceId { get; set; }
     public string? InvocationId { get; set; }
+    public string? SessionId { get; set; }
+    public byte[]? RawBinaryPayload { get; set; }
+    public string? Host { get; set; }
+    public string? HubPath { get; set; }
+    public string? Transport { get; set; }
 }
 
 public enum MessageDirection { ClientToServer, ServerToClient }

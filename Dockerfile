@@ -1,14 +1,29 @@
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
+
+# Layer 1: Copy only csproj files + sln (changes rarely)
+COPY BlazeCannon.sln .
+COPY BlazeCannon.Core/BlazeCannon.Core.csproj BlazeCannon.Core/
+COPY BlazeCannon.Protocol/BlazeCannon.Protocol.csproj BlazeCannon.Protocol/
+COPY BlazeCannon.Proxy/BlazeCannon.Proxy.csproj BlazeCannon.Proxy/
+COPY BlazeCannon.Scanner/BlazeCannon.Scanner.csproj BlazeCannon.Scanner/
+COPY BlazeCannon.Browser/BlazeCannon.Browser.csproj BlazeCannon.Browser/
+COPY BlazeCannon.App/BlazeCannon.App.csproj BlazeCannon.App/
+
+# Layer 2: Restore — cached until a csproj changes
+RUN dotnet restore BlazeCannon.App/BlazeCannon.App.csproj
+
+# Layer 3: Install Playwright — cached until Playwright package version changes
+RUN dotnet publish BlazeCannon.Browser/BlazeCannon.Browser.csproj -c Release -o /tmp/browser-shim || true
+RUN pwsh /tmp/browser-shim/playwright.ps1 install --with-deps chromium
+
+# Layer 4: Copy source and build (this is what changes on every code edit)
 COPY . .
 RUN dotnet publish BlazeCannon.App/BlazeCannon.App.csproj -c Release -o /app
 
-# Install Playwright browsers during build (using the SDK image which has pwsh)
-RUN pwsh /app/playwright.ps1 install --with-deps chromium
-
+# Runtime image
 FROM mcr.microsoft.com/dotnet/aspnet:8.0
 
-# Install Playwright's runtime dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libglib2.0-0 libnss3 libnspr4 libdbus-1-3 libatk1.0-0 \
     libatk-bridge2.0-0 libcups2 libdrm2 libxkbcommon0 \
@@ -20,9 +35,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 COPY --from=build /app .
-# Copy Playwright browser binaries from the build stage
 COPY --from=build /root/.cache/ms-playwright /root/.cache/ms-playwright
 
-EXPOSE 8080
-ENV ASPNETCORE_URLS=http://+:8080
+EXPOSE 8080 5001
+ENV BLAZECANNON_UI_PORT=8080
+ENV BLAZECANNON_PROXY_PORT=5001
 ENTRYPOINT ["dotnet", "BlazeCannon.App.dll"]
