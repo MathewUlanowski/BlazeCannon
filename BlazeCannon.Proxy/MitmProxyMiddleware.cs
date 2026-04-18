@@ -122,8 +122,9 @@ public class MitmProxyMiddleware
         var path = context.Request.Path.Value ?? string.Empty;
         var isBlazorLongPoll = path.StartsWith("/_blazor", StringComparison.OrdinalIgnoreCase)
                                && !path.EndsWith("/negotiate", StringComparison.OrdinalIgnoreCase);
-        var sessionId = context.Request.Query["id"].ToString();
-        if (string.IsNullOrEmpty(sessionId)) sessionId = "lp-" + context.Connection.Id;
+        var queryId = context.Request.Query["id"].ToString();
+        var hasRealSessionId = !string.IsNullOrEmpty(queryId);
+        var sessionId = hasRealSessionId ? queryId : "lp-" + context.Connection.Id;
         var host = context.Request.Host.ToString();
 
         if (isBlazorLongPoll && requestBodyBytes is { Length: > 0 })
@@ -159,6 +160,18 @@ public class MitmProxyMiddleware
             else
             {
                 await response.Content.CopyToAsync(context.Response.Body);
+            }
+
+            // Register the long-poll session so /api/replay/{send,encode-and-send} can target it.
+            // - Only for real SignalR ids (skip the "lp-<connectionId>" placeholder — those aren't sessions).
+            // - Only after a successful round-trip, so a broken target doesn't leave a phantom registration.
+            // - useMessagePack defaults to true: Blazor Server negotiates MessagePack in ~99% of cases, and
+            //   the operator can override per-replay via EncodeAndSendRequest.UseMessagePack on the wire.
+            if (isBlazorLongPoll && hasRealSessionId && _mitmProxy is MitmProxyService mitm)
+            {
+                var baseUrl = targetBaseUrl;
+                var hubPath = path;
+                mitm.RegisterLongPollSession(sessionId, baseUrl, hubPath, useMessagePack: true);
             }
         }
         catch (HttpRequestException ex)
