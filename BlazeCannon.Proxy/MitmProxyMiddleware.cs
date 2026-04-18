@@ -255,7 +255,7 @@ public class MitmProxyMiddleware
             return;
         }
 
-        _mitmProxy.RegisterSession(sessionId, targetWs);
+        _mitmProxy.RegisterSession(sessionId, targetWs, targetHost, hubPath, "WebSocket");
 
         var cts = new CancellationTokenSource();
         var b2s = RelayLoop(browserWs, targetWs, MessageDirection.ClientToServer, sessionId, targetHost, hubPath, cts);

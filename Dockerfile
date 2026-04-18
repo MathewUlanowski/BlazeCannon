@@ -8,18 +8,19 @@ COPY BlazeCannon.Protocol/BlazeCannon.Protocol.csproj BlazeCannon.Protocol/
 COPY BlazeCannon.Proxy/BlazeCannon.Proxy.csproj BlazeCannon.Proxy/
 COPY BlazeCannon.Scanner/BlazeCannon.Scanner.csproj BlazeCannon.Scanner/
 COPY BlazeCannon.Browser/BlazeCannon.Browser.csproj BlazeCannon.Browser/
-COPY BlazeCannon.App/BlazeCannon.App.csproj BlazeCannon.App/
+COPY BlazeCannon.Api/BlazeCannon.Api.csproj BlazeCannon.Api/
 
 # Layer 2: Restore — cached until a csproj changes
-RUN dotnet restore BlazeCannon.App/BlazeCannon.App.csproj
+RUN dotnet restore BlazeCannon.Api/BlazeCannon.Api.csproj
 
 # Layer 3: Install Playwright — cached until Playwright package version changes
+# BlazeCannon.Browser still ships Playwright; Scanner uses it through Browser.
 RUN dotnet publish BlazeCannon.Browser/BlazeCannon.Browser.csproj -c Release -o /tmp/browser-shim || true
 RUN pwsh /tmp/browser-shim/playwright.ps1 install --with-deps chromium
 
 # Layer 4: Copy source and build (this is what changes on every code edit)
 COPY . .
-RUN dotnet publish BlazeCannon.App/BlazeCannon.App.csproj -c Release -o /app
+RUN dotnet publish BlazeCannon.Api/BlazeCannon.Api.csproj -c Release -o /app
 
 # Runtime image
 FROM mcr.microsoft.com/dotnet/aspnet:8.0
@@ -40,4 +41,4 @@ COPY --from=build /root/.cache/ms-playwright /root/.cache/ms-playwright
 EXPOSE 8080 5001
 ENV BLAZECANNON_UI_PORT=8080
 ENV BLAZECANNON_PROXY_PORT=5001
-ENTRYPOINT ["dotnet", "BlazeCannon.App.dll"]
+ENTRYPOINT ["dotnet", "BlazeCannon.Api.dll"]

@@ -112,10 +112,10 @@ jobs:
       matrix:
         include:
           - rid: win-x64
-            binary: BlazeCannon.App.exe
+            binary: BlazeCannon.Api.exe
             package: exe
           - rid: linux-x64
-            binary: BlazeCannon.App
+            binary: BlazeCannon.Api
             package: tar.gz
     steps:
       - uses: actions/checkout@v4
@@ -126,7 +126,7 @@ jobs:
 
       - name: Publish ${{ matrix.rid }} (fully embedded single-file)
         run: |
-          dotnet publish BlazeCannon.App/BlazeCannon.App.csproj \
+          dotnet publish BlazeCannon.Api/BlazeCannon.Api.csproj \
             -c Release \
             -r ${{ matrix.rid }} \
             --self-contained true \

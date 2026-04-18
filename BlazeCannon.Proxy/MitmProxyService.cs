@@ -15,6 +15,9 @@ public class MitmProxyService : IMitmProxy
     private readonly object _lock = new();
 
     public event Action<BlazorMessage>? OnMessageIntercepted;
+    public event Action<SessionInfo>? OnSessionOpened;
+    public event Action<string>? OnSessionClosed;
+    public event Action? OnTrafficCleared;
     public bool IsRunning => true; // Running as middleware, always active
     public int ActiveSessionCount => _activeSessions.Count;
 
@@ -36,19 +39,33 @@ public class MitmProxyService : IMitmProxy
 
     public void RegisterSession(string sessionId, WebSocket targetWebSocket)
     {
+        RegisterSession(sessionId, targetWebSocket, host: null, hubPath: null, transport: null);
+    }
+
+    public void RegisterSession(string sessionId, WebSocket targetWebSocket, string? host, string? hubPath, string? transport)
+    {
         _activeSessions[sessionId] = targetWebSocket;
         _logger.LogInformation("MITM session registered: {SessionId} (active: {Count})", sessionId, _activeSessions.Count);
+        OnSessionOpened?.Invoke(new SessionInfo
+        {
+            SessionId = sessionId,
+            Host = host,
+            HubPath = hubPath,
+            Transport = transport
+        });
     }
 
     public void UnregisterSession(string sessionId)
     {
         _activeSessions.TryRemove(sessionId, out _);
         _logger.LogInformation("MITM session unregistered: {SessionId} (active: {Count})", sessionId, _activeSessions.Count);
+        OnSessionClosed?.Invoke(sessionId);
     }
 
     public void ClearMessages()
     {
         lock (_lock) _captured.Clear();
+        OnTrafficCleared?.Invoke();
     }
 
     public async Task ReplayMessageAsync(BlazorMessage message, CancellationToken ct = default)

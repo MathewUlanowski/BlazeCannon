@@ -1,0 +1,13 @@
+{
+  "profiles": {
+    "BlazeCannon.Api": {
+      "commandName": "Project",
+      "dotnetRunMessages": true,
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "BLAZECANNON_UI_PORT": "8080",
+        "BLAZECANNON_PROXY_PORT": "5001"
+      }
+    }
+  }
+}
