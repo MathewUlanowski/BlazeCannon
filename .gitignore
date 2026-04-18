@@ -56,3 +56,6 @@ playwright/.cache/
 
 ## Docker
 .dockerignore
+
+## Claude Code worktrees and local state
+.claude/
