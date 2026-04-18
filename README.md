@@ -144,6 +144,40 @@ BlazeCannon operates at the **SignalR protocol level**, which is the transport l
 5. **Injects** crafted `DispatchBrowserEvent` messages to simulate user input with malicious payloads
 6. **Analyzes** server responses (render batches, invocations, completions) for evidence of vulnerabilities
 
+## Releases
+
+Every push builds and publishes via GitHub Actions. The convention:
+
+| Branch | Release type | Tag format | Docker tags |
+|--------|--------------|------------|-------------|
+| `main` | Stable release | `v{version}` (e.g. `v0.2.0`) | `:latest`, `:{version}`, `:v{version}` |
+| Any other | Pre-release | `v{version}-{branch}.{run}` | `:{branch}`, `:v{version}-{branch}.{run}` |
+
+`{version}` comes from `<Version>` in `Directory.Build.props`. **Bump it before merging to `main`** — the workflow fails the build if `v{version}` already exists as a tag.
+
+Images are pushed to GitHub Container Registry:
+
+```
+ghcr.io/mathewulanowski/blazecannon:latest
+ghcr.io/mathewulanowski/blazecannon:v0.2.0
+```
+
+Each release also gets a zipped `linux-x64` publish build attached.
+
+```mermaid
+graph LR
+    Push[Push commit] --> Which{Branch?}
+    Which -->|main| Stable[Stable release<br/>v{version}]
+    Which -->|feature-x| Pre[Pre-release<br/>v{version}-feature-x.{run}]
+    Stable --> GHCR[(GHCR<br/>:latest, :vX.Y.Z)]
+    Stable --> GHR1[GitHub Release<br/>prerelease=false]
+    Pre --> GHCR2[(GHCR<br/>:feature-x)]
+    Pre --> GHR2[GitHub Release<br/>prerelease=true]
+
+    style Stable fill:#39d353,color:#0d1117
+    style Pre fill:#d29922,color:#0d1117
+```
+
 ## License
 
 This project is for educational and authorized security testing purposes only.

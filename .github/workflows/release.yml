@@ -1,0 +1,131 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - '**'
+
+# One release run per branch; newer pushes cancel in-flight runs.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write   # create releases + push tags
+  packages: write   # push images to GHCR
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.version.outputs.tag }}
+      prerelease: ${{ steps.version.outputs.prerelease }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Compute version and tag
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION=$(grep -oP '<Version>\K[^<]+' Directory.Build.props)
+          BRANCH="${GITHUB_REF_NAME}"
+          BRANCH_SLUG=$(echo "$BRANCH" | tr '/' '-' | tr -c '[:alnum:]-_.' '-' | sed 's/-*$//')
+
+          if [ "$BRANCH" = "main" ]; then
+            TAG="v${VERSION}"
+            PRERELEASE="false"
+          else
+            TAG="v${VERSION}-${BRANCH_SLUG}.${GITHUB_RUN_NUMBER}"
+            PRERELEASE="true"
+          fi
+
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "prerelease=$PRERELEASE" >> "$GITHUB_OUTPUT"
+          echo "branch_slug=$BRANCH_SLUG" >> "$GITHUB_OUTPUT"
+
+          echo "Resolved version=$VERSION tag=$TAG prerelease=$PRERELEASE"
+
+      - name: Ensure tag is fresh (main only)
+        if: github.ref == 'refs/heads/main'
+        shell: bash
+        run: |
+          if git rev-parse "refs/tags/${{ steps.version.outputs.tag }}" >/dev/null 2>&1; then
+            echo "::error::Tag ${{ steps.version.outputs.tag }} already exists. Bump <Version> in Directory.Build.props before merging to main."
+            exit 1
+          fi
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore
+        run: dotnet restore BlazeCannon.sln
+
+      - name: Build
+        run: dotnet build BlazeCannon.sln --configuration Release --no-restore
+
+      - name: Publish framework-dependent (linux-x64)
+        run: |
+          dotnet publish BlazeCannon.App/BlazeCannon.App.csproj \
+            --configuration Release \
+            --no-build \
+            --output ./publish/linux-x64
+
+      - name: Package publish artifact
+        run: |
+          cd publish
+          zip -r "../blazecannon-${{ steps.version.outputs.tag }}-linux-x64.zip" linux-x64
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Compute Docker tags
+        id: docker_tags
+        shell: bash
+        run: |
+          IMAGE="ghcr.io/$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')/blazecannon"
+          TAGS="${IMAGE}:${{ steps.version.outputs.tag }}"
+          if [ "${GITHUB_REF}" = "refs/heads/main" ]; then
+            TAGS="${TAGS},${IMAGE}:latest,${IMAGE}:${{ steps.version.outputs.version }}"
+          else
+            TAGS="${TAGS},${IMAGE}:${{ steps.version.outputs.branch_slug }}"
+          fi
+          echo "tags=$TAGS" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.docker_tags.outputs.tags }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.version=${{ steps.version.outputs.tag }}
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: ${{ steps.version.outputs.tag }}
+          target_commitish: ${{ github.sha }}
+          prerelease: ${{ steps.version.outputs.prerelease == 'true' }}
+          generate_release_notes: true
+          files: |
+            blazecannon-${{ steps.version.outputs.tag }}-linux-x64.zip
