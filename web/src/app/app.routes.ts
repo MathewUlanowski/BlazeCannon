@@ -17,11 +17,6 @@ export const APP_ROUTES: Routes = [
       ),
   },
   {
-    path: 'replay',
-    loadComponent: () =>
-      import('./pages/replay/replay.component').then((m) => m.ReplayComponent),
-  },
-  {
     path: 'scanner',
     loadComponent: () =>
       import('./pages/placeholder/placeholder.component').then(

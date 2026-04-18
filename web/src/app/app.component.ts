@@ -27,7 +27,6 @@ export class AppComponent implements OnInit {
   readonly navLinks: NavLink[] = [
     { path: '/', label: 'Dashboard', icon: 'pi-th-large' },
     { path: '/traffic', label: 'Traffic Inspector', icon: 'pi-list' },
-    { path: '/replay', label: 'Replay', icon: 'pi-send' },
     { path: '/scanner', label: 'Scanner', icon: 'pi-search' },
     { path: '/workbench', label: 'Payload Workbench', icon: 'pi-code' },
     { path: '/browser', label: 'Browser Engine', icon: 'pi-desktop' },

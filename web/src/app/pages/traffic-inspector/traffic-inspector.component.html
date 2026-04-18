@@ -74,33 +74,7 @@
       [disabled]="!filtered.length"
       (click)="exportCsv()"
     ></button>
-    <button
-      pButton
-      type="button"
-      label="Stage"
-      icon="pi pi-bookmark"
-      class="p-button-sm"
-      [disabled]="!selected"
-      pTooltip="Add selected message to replay queue"
-      (click)="stageSelected(false)"
-    ></button>
-    <button
-      pButton
-      type="button"
-      label="Stage → Open Replay"
-      icon="pi pi-send"
-      class="p-button-sm p-button-success"
-      [disabled]="!selected"
-      (click)="stageSelected(true)"
-    ></button>
   </div>
-
-  <p-message
-    *ngIf="stageFeedback"
-    [severity]="stageFeedback.ok ? 'success' : 'error'"
-    [text]="stageFeedback.text"
-    styleClass="bc-stage-feedback"
-  ></p-message>
 
   <div class="bc-traffic-body">
     <div class="bc-table-wrap" [class.bc-has-detail]="selected">
@@ -156,37 +130,193 @@
       </p-table>
     </div>
 
-    <aside *ngIf="selected" class="bc-detail">
+    <aside *ngIf="selected as msg" class="bc-detail">
       <div class="bc-detail-header">
-        <h3>Detail</h3>
+        <h3>Detail &amp; Replay</h3>
+        <span class="bc-sub">
+          <ng-container *ngIf="status as s; else noStatus">
+            Active sessions:
+            <strong [class.bc-warn]="!s.activeSessionCount">{{ s.activeSessionCount }}</strong>
+          </ng-container>
+          <ng-template #noStatus>Proxy status unavailable</ng-template>
+        </span>
         <button
           pButton
           type="button"
           icon="pi pi-times"
           class="p-button-text p-button-sm"
           (click)="closeDetail()"
+          pTooltip="Close (Esc)"
         ></button>
       </div>
+
       <div class="bc-detail-grid">
         <div class="k">Direction</div>
-        <div class="v" [ngClass]="selected.direction === 'ClientToServer' ? 'dir-out' : 'dir-in'">
-          {{ dirArrow(selected.direction) }} {{ selected.direction }}
+        <div class="v" [ngClass]="msg.direction === 'ClientToServer' ? 'dir-out' : 'dir-in'">
+          {{ dirArrow(msg.direction) }} {{ msg.direction }}
         </div>
-        <div class="k">Type</div><div class="v">{{ selected.messageType }}</div>
-        <div class="k">Method</div><div class="v bc-mono">{{ selected.hubMethod || '—' }}</div>
-        <div class="k">Host</div><div class="v">{{ selected.host || '—' }}</div>
-        <div class="k">Hub</div><div class="v bc-mono">{{ selected.hubPath || '—' }}</div>
-        <div class="k">Transport</div><div class="v">{{ selected.transport || '—' }}</div>
-        <div class="k">Session</div><div class="v bc-mono">{{ selected.sessionId || '—' }}</div>
-        <div class="k">Time</div><div class="v bc-mono">{{ selected.timestamp }}</div>
+        <div class="k">Type</div><div class="v">{{ msg.messageType }}</div>
+        <div class="k">Method</div><div class="v bc-mono">{{ msg.hubMethod || '—' }}</div>
+        <div class="k">Host</div><div class="v">{{ msg.host || '—' }}</div>
+        <div class="k">Hub</div><div class="v bc-mono">{{ msg.hubPath || '—' }}</div>
+        <div class="k">Transport</div><div class="v">{{ msg.transport || '—' }}</div>
+        <div class="k">Session</div><div class="v bc-mono">{{ msg.sessionId || '—' }}</div>
+        <div class="k">Time</div><div class="v bc-mono">{{ msg.timestamp }}</div>
       </div>
-      <div *ngIf="selected.decodedArguments" class="bc-detail-section">
-        <div class="bc-detail-label">Decoded arguments</div>
-        <pre>{{ formatArgs(selected.decodedArguments) }}</pre>
+
+      <p-tabView styleClass="bc-replay-tabs">
+        <!-- ===== RAW TAB ===== -->
+        <p-tabPanel header="Raw">
+          <p-message
+            *ngIf="isBinary"
+            severity="warn"
+            styleClass="bc-binary-banner"
+            [text]="
+              'Binary — will re-send original ' + binaryByteCount +
+              ' bytes. Text editing disabled.'
+            "
+          ></p-message>
+
+          <div class="bc-editor">
+            <label class="bc-editor-label">Raw payload</label>
+            <textarea
+              *ngIf="!isBinary"
+              pInputTextarea
+              [(ngModel)]="editedPayload"
+              rows="12"
+              class="bc-textarea"
+              spellcheck="false"
+            ></textarea>
+            <pre *ngIf="isBinary" class="bc-binary-preview">{{ msg.rawPayload }}</pre>
+          </div>
+
+          <div class="bc-send-row">
+            <button
+              pButton
+              type="button"
+              label="Send to session"
+              icon="pi pi-send"
+              class="p-button-success"
+              [loading]="sending"
+              [disabled]="!canSend"
+              (click)="send()"
+            ></button>
+            <p-message
+              *ngIf="status && status.activeSessionCount === 0"
+              severity="warn"
+              text="No active MITM sessions — send is disabled."
+            ></p-message>
+            <p-message
+              *ngIf="sendResult?.ok"
+              severity="success"
+              [text]="'Sent at ' + (sendResult!.at || 'now')"
+            ></p-message>
+            <p-message
+              *ngIf="sendResult && !sendResult.ok"
+              severity="error"
+              [text]="sendResult.error || 'Send failed'"
+            ></p-message>
+          </div>
+        </p-tabPanel>
+
+        <!-- ===== DECODED TAB — Invocation-only ===== -->
+        <p-tabPanel
+          header="Decoded"
+          [disabled]="!decodedSupported"
+          [tooltip]="decodedSupportedTooltip"
+          tooltipPosition="bottom"
+        >
+          <ng-container *ngIf="decodedSupported; else decodedDisabled">
+            <div class="bc-decoded-form">
+              <label class="bc-editor-label" for="bc-decoded-method">Hub Method</label>
+              <input
+                id="bc-decoded-method"
+                pInputText
+                type="text"
+                class="bc-decoded-input"
+                spellcheck="false"
+                [(ngModel)]="decodedHubMethod"
+              />
+
+              <label class="bc-editor-label" for="bc-decoded-invid">Invocation ID (optional)</label>
+              <input
+                id="bc-decoded-invid"
+                pInputText
+                type="text"
+                class="bc-decoded-input"
+                spellcheck="false"
+                [(ngModel)]="decodedInvocationId"
+              />
+
+              <label class="bc-editor-label" for="bc-decoded-args">Arguments (JSON array)</label>
+              <textarea
+                id="bc-decoded-args"
+                pInputTextarea
+                rows="8"
+                class="bc-textarea bc-decoded-args"
+                spellcheck="false"
+                [ngModel]="decodedArgsJson"
+                (ngModelChange)="onDecodedArgsChange($event)"
+              ></textarea>
+              <p-message
+                *ngIf="decodedJsonError"
+                severity="error"
+                styleClass="bc-decoded-err"
+                [text]="decodedJsonError"
+              ></p-message>
+
+              <div class="bc-decoded-switch">
+                <p-inputSwitch
+                  inputId="bc-decoded-mpack"
+                  [(ngModel)]="decodedUseMessagePack"
+                ></p-inputSwitch>
+                <label for="bc-decoded-mpack">Use MessagePack (blazorpack)</label>
+              </div>
+            </div>
+
+            <div class="bc-send-row">
+              <button
+                pButton
+                type="button"
+                label="Send (decoded)"
+                icon="pi pi-send"
+                class="p-button-success"
+                [loading]="decodedSending"
+                [disabled]="!canSendDecoded"
+                (click)="sendDecoded()"
+              ></button>
+              <p-message
+                *ngIf="status && status.activeSessionCount === 0"
+                severity="warn"
+                text="No active MITM sessions — send is disabled."
+              ></p-message>
+              <p-message
+                *ngIf="decodedSendResult?.ok"
+                severity="success"
+                [text]="(decodedSendResult!.info || 'Sent') + ' at ' + (decodedSendResult!.at || 'now')"
+              ></p-message>
+              <p-message
+                *ngIf="decodedSendResult && !decodedSendResult.ok"
+                severity="error"
+                [text]="decodedSendResult.error || 'Send failed'"
+              ></p-message>
+            </div>
+          </ng-container>
+          <ng-template #decodedDisabled>
+            <div class="bc-empty">
+              Decoded editing supports Invocation messages only in this release.
+            </div>
+          </ng-template>
+        </p-tabPanel>
+      </p-tabView>
+
+      <div *ngIf="msg.decodedArguments" class="bc-detail-section">
+        <div class="bc-detail-label">Decoded arguments (captured)</div>
+        <pre>{{ formatArgs(msg.decodedArguments) }}</pre>
       </div>
       <div class="bc-detail-section">
-        <div class="bc-detail-label">Raw payload</div>
-        <pre>{{ selected.rawPayload }}</pre>
+        <div class="bc-detail-label">Raw payload (captured)</div>
+        <pre>{{ msg.rawPayload }}</pre>
       </div>
     </aside>
   </div>
