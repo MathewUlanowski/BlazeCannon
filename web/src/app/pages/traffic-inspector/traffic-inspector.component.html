@@ -1,0 +1,193 @@
+<div class="bc-page">
+  <header class="bc-page-header">
+    <h2>Traffic Inspector</h2>
+    <span class="bc-msg-count">{{ filtered.length }} / {{ messages.length }} messages</span>
+  </header>
+
+  <p-message
+    *ngIf="loadError"
+    severity="error"
+    [text]="loadError"
+  ></p-message>
+
+  <div class="bc-toolbar">
+    <p-dropdown
+      [options]="directionOptions"
+      [(ngModel)]="directionFilter"
+      (onChange)="onFilterChange()"
+      styleClass="bc-ddl"
+      placeholder="Direction"
+    ></p-dropdown>
+    <p-dropdown
+      [options]="typeOptions"
+      [(ngModel)]="typeFilter"
+      (onChange)="onFilterChange()"
+      styleClass="bc-ddl"
+      [filter]="true"
+      placeholder="Type"
+    ></p-dropdown>
+    <span class="p-input-icon-left">
+      <i class="pi pi-search"></i>
+      <input
+        pInputText
+        type="text"
+        [(ngModel)]="search"
+        (input)="onFilterChange()"
+        placeholder="Search payload, method, host, hub…"
+        class="bc-search"
+      />
+    </span>
+
+    <span class="bc-toolbar-spacer"></span>
+
+    <button
+      pButton
+      type="button"
+      label="Clear"
+      icon="pi pi-trash"
+      class="p-button-sm p-button-outlined p-button-danger"
+      (click)="clear()"
+    ></button>
+    <button
+      pButton
+      type="button"
+      label="Reset Columns"
+      icon="pi pi-table"
+      class="p-button-sm p-button-outlined"
+      (click)="resetColumns()"
+    ></button>
+    <button
+      pButton
+      type="button"
+      label="Export JSON"
+      icon="pi pi-download"
+      class="p-button-sm p-button-outlined"
+      [disabled]="!filtered.length"
+      (click)="exportJson()"
+    ></button>
+    <button
+      pButton
+      type="button"
+      label="Export CSV"
+      icon="pi pi-file-excel"
+      class="p-button-sm p-button-outlined"
+      [disabled]="!filtered.length"
+      (click)="exportCsv()"
+    ></button>
+    <button
+      pButton
+      type="button"
+      label="Stage"
+      icon="pi pi-bookmark"
+      class="p-button-sm"
+      [disabled]="!selected"
+      pTooltip="Add selected message to replay queue"
+      (click)="stageSelected(false)"
+    ></button>
+    <button
+      pButton
+      type="button"
+      label="Stage → Open Replay"
+      icon="pi pi-send"
+      class="p-button-sm p-button-success"
+      [disabled]="!selected"
+      (click)="stageSelected(true)"
+    ></button>
+  </div>
+
+  <p-message
+    *ngIf="stageFeedback"
+    [severity]="stageFeedback.ok ? 'success' : 'error'"
+    [text]="stageFeedback.text"
+    styleClass="bc-stage-feedback"
+  ></p-message>
+
+  <div class="bc-traffic-body">
+    <div class="bc-table-wrap" [class.bc-has-detail]="selected">
+      <p-table
+        [value]="filtered"
+        [columns]="columns"
+        [reorderableColumns]="true"
+        (onColReorder)="onColReorder()"
+        styleClass="p-datatable-sm bc-traffic-table"
+        [scrollable]="true"
+        scrollHeight="flex"
+      >
+        <ng-template pTemplate="header" let-columns>
+          <tr>
+            <th
+              *ngFor="let col of columns"
+              pReorderableColumn
+              [attr.data-key]="col.key"
+            >
+              <i class="pi pi-bars bc-col-grip"></i>
+              {{ col.label }}
+            </th>
+          </tr>
+        </ng-template>
+        <ng-template pTemplate="body" let-msg let-columns="columns">
+          <tr
+            (click)="onRowSelect(msg)"
+            [class.bc-selected]="msg === selected"
+          >
+            <td *ngFor="let col of columns" [ngSwitch]="col.key">
+              <span *ngSwitchCase="'time'" class="bc-mono">{{ formatTime(msg.timestamp) }}</span>
+              <span
+                *ngSwitchCase="'dir'"
+                [ngClass]="msg.direction === 'ClientToServer' ? 'dir-out' : 'dir-in'"
+              >{{ dirArrow(msg.direction) }}</span>
+              <span *ngSwitchCase="'type'">{{ msg.messageType }}</span>
+              <span *ngSwitchCase="'method'" class="bc-mono">{{ msg.hubMethod || '-' }}</span>
+              <span *ngSwitchCase="'host'">{{ msg.host || '-' }}</span>
+              <span *ngSwitchCase="'hub'" class="bc-mono">{{ msg.hubPath || '-' }}</span>
+              <span *ngSwitchCase="'transport'">{{ msg.transport || '-' }}</span>
+              <span *ngSwitchCase="'preview'" class="bc-preview">{{ truncate(msg.rawPayload) }}</span>
+            </td>
+          </tr>
+        </ng-template>
+        <ng-template pTemplate="emptymessage">
+          <tr>
+            <td [attr.colspan]="columns.length" class="bc-empty">
+              No messages yet. Configure your browser to proxy through BlazeCannon
+              and navigate to a Blazor Server target.
+            </td>
+          </tr>
+        </ng-template>
+      </p-table>
+    </div>
+
+    <aside *ngIf="selected" class="bc-detail">
+      <div class="bc-detail-header">
+        <h3>Detail</h3>
+        <button
+          pButton
+          type="button"
+          icon="pi pi-times"
+          class="p-button-text p-button-sm"
+          (click)="closeDetail()"
+        ></button>
+      </div>
+      <div class="bc-detail-grid">
+        <div class="k">Direction</div>
+        <div class="v" [ngClass]="selected.direction === 'ClientToServer' ? 'dir-out' : 'dir-in'">
+          {{ dirArrow(selected.direction) }} {{ selected.direction }}
+        </div>
+        <div class="k">Type</div><div class="v">{{ selected.messageType }}</div>
+        <div class="k">Method</div><div class="v bc-mono">{{ selected.hubMethod || '—' }}</div>
+        <div class="k">Host</div><div class="v">{{ selected.host || '—' }}</div>
+        <div class="k">Hub</div><div class="v bc-mono">{{ selected.hubPath || '—' }}</div>
+        <div class="k">Transport</div><div class="v">{{ selected.transport || '—' }}</div>
+        <div class="k">Session</div><div class="v bc-mono">{{ selected.sessionId || '—' }}</div>
+        <div class="k">Time</div><div class="v bc-mono">{{ selected.timestamp }}</div>
+      </div>
+      <div *ngIf="selected.decodedArguments" class="bc-detail-section">
+        <div class="bc-detail-label">Decoded arguments</div>
+        <pre>{{ formatArgs(selected.decodedArguments) }}</pre>
+      </div>
+      <div class="bc-detail-section">
+        <div class="bc-detail-label">Raw payload</div>
+        <pre>{{ selected.rawPayload }}</pre>
+      </div>
+    </aside>
+  </div>
+</div>

@@ -1,0 +1,32 @@
+<div class="bc-shell">
+  <aside class="bc-sidebar">
+    <div class="bc-brand">
+      <span class="bc-brand-mark">⚡</span>
+      <span class="bc-brand-text">BlazeCannon</span>
+    </div>
+
+    <nav class="bc-nav">
+      <a
+        *ngFor="let link of navLinks"
+        [routerLink]="link.path"
+        routerLinkActive="active"
+        [routerLinkActiveOptions]="{ exact: link.path === '/' }"
+        class="bc-nav-link"
+      >
+        <i class="pi {{ link.icon }}"></i>
+        <span>{{ link.label }}</span>
+      </a>
+    </nav>
+
+    <div class="bc-sidebar-footer">
+      <div class="bc-state-row" [ngClass]="stateClass(state$ | async)">
+        <span class="bc-state-dot"></span>
+        <span class="bc-state-label">{{ stateLabel(state$ | async) }}</span>
+      </div>
+    </div>
+  </aside>
+
+  <main class="bc-main">
+    <router-outlet></router-outlet>
+  </main>
+</div>

@@ -1,0 +1,71 @@
+<div class="bc-page">
+  <header class="bc-page-header">
+    <h2>Dashboard</h2>
+    <button
+      pButton
+      type="button"
+      label="Refresh"
+      icon="pi pi-refresh"
+      class="p-button-sm p-button-outlined"
+      (click)="refresh()"
+    ></button>
+  </header>
+
+  <p-message
+    *ngIf="error"
+    severity="error"
+    [text]="error"
+    styleClass="bc-error"
+  ></p-message>
+
+  <div class="bc-dash-grid" *ngIf="status as s">
+    <p-card styleClass="bc-dash-card">
+      <ng-template pTemplate="title">Proxy</ng-template>
+      <div class="bc-stat-row">
+        <p-tag
+          [severity]="s.isRunning ? 'success' : 'danger'"
+          [value]="s.isRunning ? 'Running' : 'Stopped'"
+        ></p-tag>
+      </div>
+      <div class="bc-stat-kv">
+        <span class="k">UI Port</span><span class="v">{{ s.uiPort }}</span>
+      </div>
+      <div class="bc-stat-kv">
+        <span class="k">Proxy Port</span><span class="v">{{ s.proxyPort }}</span>
+      </div>
+    </p-card>
+
+    <p-card styleClass="bc-dash-card">
+      <ng-template pTemplate="title">Active Sessions</ng-template>
+      <div class="bc-stat-big">{{ s.activeSessionCount }}</div>
+      <div class="bc-stat-sub">live MITM connections</div>
+    </p-card>
+
+    <p-card styleClass="bc-dash-card">
+      <ng-template pTemplate="title">Captured Messages</ng-template>
+      <div class="bc-stat-big">{{ s.capturedCount }}</div>
+      <div class="bc-stat-sub">since last clear</div>
+    </p-card>
+
+    <p-card styleClass="bc-dash-card bc-dash-card-wide">
+      <ng-template pTemplate="title">How to use</ng-template>
+      <ol class="bc-howto">
+        <li>
+          Configure your browser to use <code>localhost:{{ s.proxyPort }}</code>
+          as an HTTP/HTTPS proxy.
+        </li>
+        <li>Navigate to the target Blazor Server app.</li>
+        <li>
+          Open the <a routerLink="/traffic">Traffic Inspector</a> to watch
+          SignalR frames stream in live.
+        </li>
+        <li>
+          Select frames and stage them for the
+          <a routerLink="/replay">Replay</a> workbench.
+        </li>
+      </ol>
+    </p-card>
+  </div>
+
+  <div *ngIf="loading && !status" class="bc-loading">Loading proxy status…</div>
+</div>
