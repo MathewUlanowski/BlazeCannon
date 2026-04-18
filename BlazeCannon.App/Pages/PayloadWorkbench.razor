@@ -1,0 +1,110 @@
+@page "/workbench"
+@using BlazeCannon.App.Services
+@using BlazeCannon.Core.Interfaces
+@using BlazeCannon.Core.Models
+@using BlazeCannon.Protocol
+@using BlazeCannon.Scanner
+@inject AppStateService AppState
+@inject ITrafficProxy Proxy
+@inject IProtocolEncoder Encoder
+
+<PageTitle>Payload Workbench - BlazeCannon</PageTitle>
+
+<h2>Payload Workbench</h2>
+
+<div class="workbench-layout">
+    <div class="inject-panel">
+        <h4>Inject Payload</h4>
+
+        <div class="form-group">
+            <label>Event Handler ID</label>
+            <input type="number" @bind="_eventHandlerId" class="form-control dark-input" />
+        </div>
+
+        <div class="form-group">
+            <label>Event Type</label>
+            <select @bind="_eventType" class="form-control dark-input">
+                <option value="change">change</option>
+                <option value="input">input</option>
+                <option value="click">click</option>
+                <option value="submit">submit</option>
+                <option value="focus">focusin</option>
+                <option value="blur">focusout</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label>Payload</label>
+            <textarea @bind="_payload" class="form-control dark-input payload-input" rows="4"></textarea>
+        </div>
+
+        <button class="btn btn-primary" @onclick="InjectPayload" disabled="@(!AppState.IsConnected)">
+            Inject
+        </button>
+
+        <h4 class="mt-3">Payload Templates</h4>
+        <div class="template-grid">
+            @foreach (var category in new[] { "XSS", "SQLi", "CommandInjection", "PathTraversal" })
+            {
+                <div class="template-category">
+                    <h5>@category</h5>
+                    @foreach (var p in PayloadRepository.GetByCategory(category))
+                    {
+                        <button class="btn btn-sm btn-template" @onclick="() => LoadTemplate(p)" title="@p.Description">
+                            @p.Name
+                        </button>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+
+    <div class="response-panel">
+        <h4>Response</h4>
+        @if (_lastResponse != null)
+        {
+            <div class="detail-field"><strong>Type:</strong> @_lastResponse.MessageType</div>
+            <div class="detail-field"><strong>Method:</strong> @(_lastResponse.HubMethod ?? "N/A")</div>
+            <pre class="raw-display">@_lastResponse.RawPayload</pre>
+        }
+        else
+        {
+            <p class="muted">Inject a payload to see the response here.</p>
+        }
+    </div>
+</div>
+
+@code {
+    private ulong _eventHandlerId = 1;
+    private string _eventType = "change";
+    private string _payload = "";
+    private BlazorMessage? _lastResponse;
+
+    private async Task InjectPayload()
+    {
+        var message = _eventType switch
+        {
+            "click" => BlazorEventFactory.CreateClickEvent(_eventHandlerId),
+            "submit" => BlazorEventFactory.CreateSubmitEvent(_eventHandlerId),
+            "focus" => BlazorEventFactory.CreateFocusEvent(_eventHandlerId),
+            "blur" => BlazorEventFactory.CreateBlurEvent(_eventHandlerId),
+            _ => BlazorEventFactory.CreateChangeEvent(_eventHandlerId, _payload)
+        };
+
+        Proxy.OnMessageIntercepted += CaptureResponse;
+        await Proxy.SendToServerAsync(message);
+        await Task.Delay(500);
+        Proxy.OnMessageIntercepted -= CaptureResponse;
+    }
+
+    private void CaptureResponse(BlazorMessage msg)
+    {
+        if (msg.Direction == MessageDirection.ServerToClient)
+        {
+            _lastResponse = msg;
+            InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private void LoadTemplate(PayloadDefinition p) => _payload = p.Payload;
+}

@@ -1,0 +1,153 @@
+@page "/traffic"
+@using BlazeCannon.App.Services
+@using BlazeCannon.Core.Interfaces
+@using BlazeCannon.Core.Models
+@using BlazeCannon.Proxy
+@inject AppStateService AppState
+@inject ITrafficProxy Proxy
+@implements IDisposable
+
+<PageTitle>Traffic Inspector - BlazeCannon</PageTitle>
+
+<h2>Traffic Inspector</h2>
+
+<div class="toolbar">
+    @if (!AppState.IsConnected)
+    {
+        <button class="btn btn-primary" @onclick="Connect" disabled="@_connecting">
+            @(_connecting ? "Connecting..." : "Connect")
+        </button>
+    }
+    else
+    {
+        <button class="btn btn-danger" @onclick="Disconnect">Disconnect</button>
+    }
+    <button class="btn btn-secondary" @onclick="ClearMessages">Clear</button>
+    <span class="message-count">@_messages.Count messages captured</span>
+    <div class="filter-group">
+        <select @bind="_directionFilter" class="form-control dark-input">
+            <option value="">All Directions</option>
+            <option value="ClientToServer">Client -> Server</option>
+            <option value="ServerToClient">Server -> Client</option>
+        </select>
+        <input type="text" @bind="_searchFilter" @bind:event="oninput" placeholder="Search payloads..." class="form-control dark-input" />
+    </div>
+</div>
+
+<div class="traffic-container">
+    <div class="message-list">
+        <table class="traffic-table">
+            <thead>
+                <tr>
+                    <th>Time</th>
+                    <th>Dir</th>
+                    <th>Type</th>
+                    <th>Method</th>
+                    <th>Preview</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var msg in FilteredMessages)
+                {
+                    <tr class="@GetRowClass(msg)" @onclick="() => SelectMessage(msg)">
+                        <td>@msg.Timestamp.ToString("HH:mm:ss.fff")</td>
+                        <td class="@GetDirectionClass(msg)">@(msg.Direction == MessageDirection.ClientToServer ? "->" : "<-")</td>
+                        <td>@msg.MessageType</td>
+                        <td>@(msg.HubMethod ?? "-")</td>
+                        <td class="payload-preview">@Truncate(msg.RawPayload, 80)</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+
+    @if (_selectedMessage != null)
+    {
+        <div class="detail-panel">
+            <h4>Message Detail</h4>
+            <div class="detail-field"><strong>Direction:</strong> @_selectedMessage.Direction</div>
+            <div class="detail-field"><strong>Type:</strong> @_selectedMessage.MessageType</div>
+            <div class="detail-field"><strong>Method:</strong> @(_selectedMessage.HubMethod ?? "N/A")</div>
+            <div class="detail-field"><strong>Timestamp:</strong> @_selectedMessage.Timestamp</div>
+            @if (_selectedMessage.DecodedArguments != null)
+            {
+                <div class="detail-field"><strong>Arguments:</strong></div>
+                <pre class="args-display">@System.Text.Json.JsonSerializer.Serialize(_selectedMessage.DecodedArguments, new System.Text.Json.JsonSerializerOptions { WriteIndented = true })</pre>
+            }
+            <div class="detail-field"><strong>Raw Payload:</strong></div>
+            <pre class="raw-display">@_selectedMessage.RawPayload</pre>
+        </div>
+    }
+</div>
+
+@code {
+    private List<BlazorMessage> _messages = new();
+    private BlazorMessage? _selectedMessage;
+    private bool _connecting;
+    private string _directionFilter = "";
+    private string _searchFilter = "";
+
+    private IEnumerable<BlazorMessage> FilteredMessages
+    {
+        get
+        {
+            var query = _messages.AsEnumerable();
+            if (!string.IsNullOrEmpty(_directionFilter))
+            {
+                var dir = Enum.Parse<MessageDirection>(_directionFilter);
+                query = query.Where(m => m.Direction == dir);
+            }
+            if (!string.IsNullOrEmpty(_searchFilter))
+                query = query.Where(m => m.RawPayload.Contains(_searchFilter, StringComparison.OrdinalIgnoreCase));
+            return query.TakeLast(500);
+        }
+    }
+
+    protected override void OnInitialized()
+    {
+        Proxy.OnMessageIntercepted += OnMessage;
+    }
+
+    private async Task Connect()
+    {
+        _connecting = true;
+        try
+        {
+            await Proxy.ConnectAsync(AppState.TargetConfig);
+            AppState.IsConnected = true;
+            AppState.NotifyStateChanged();
+        }
+        catch (Exception ex)
+        {
+            _messages.Add(new BlazorMessage
+            {
+                MessageType = BlazorMessageType.Unknown,
+                RawPayload = $"Connection error: {ex.Message}",
+                Direction = MessageDirection.ServerToClient
+            });
+        }
+        _connecting = false;
+    }
+
+    private async Task Disconnect()
+    {
+        await Proxy.DisconnectAsync();
+        AppState.IsConnected = false;
+        AppState.NotifyStateChanged();
+    }
+
+    private void OnMessage(BlazorMessage msg)
+    {
+        _messages.Add(msg);
+        AppState.Messages.Add(msg);
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void SelectMessage(BlazorMessage msg) => _selectedMessage = msg;
+    private void ClearMessages() { _messages.Clear(); _selectedMessage = null; }
+    private string GetRowClass(BlazorMessage msg) => _selectedMessage == msg ? "selected" : "";
+    private string GetDirectionClass(BlazorMessage msg) => msg.Direction == MessageDirection.ClientToServer ? "dir-out" : "dir-in";
+    private string Truncate(string s, int max) => s.Length > max ? s[..max] + "..." : s;
+
+    public void Dispose() => Proxy.OnMessageIntercepted -= OnMessage;
+}
