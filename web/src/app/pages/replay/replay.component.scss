@@ -116,6 +116,46 @@
 
 ::ng-deep .bc-binary-banner { margin: 6px 0; }
 
+/* Decoded tab */
+::ng-deep .bc-replay-tabs .p-tabview-panels {
+  padding: 10px 0 0;
+  background: transparent;
+}
+::ng-deep .bc-replay-tabs .p-tabview-nav {
+  background: transparent;
+}
+
+.bc-decoded-form {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 4px 0;
+}
+.bc-decoded-input {
+  background: #0a1426 !important;
+  color: #d7e2f2 !important;
+  font-family: 'JetBrains Mono', 'Consolas', monospace;
+  font-size: 12.5px;
+  margin-bottom: 4px;
+}
+.bc-decoded-args {
+  flex: none;
+  min-height: 160px;
+}
+.bc-decoded-switch {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0 2px;
+  font-size: 12.5px;
+
+  label {
+    color: var(--bc-text-dim);
+    cursor: pointer;
+  }
+}
+::ng-deep .bc-decoded-err { margin-top: 4px; }
+
 /* RIGHT — session traffic */
 .bc-session-list {
   flex: 1; min-height: 0; overflow-y: auto;

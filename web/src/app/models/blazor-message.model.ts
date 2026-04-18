@@ -86,6 +86,29 @@ export interface ReplaySendResult {
   error?: string;
 }
 
+/**
+ * Request body for POST /api/replay/encode-and-send.
+ * Server encodes an Invocation from these fields and replays it on the live session.
+ */
+export interface EncodeAndSendRequest {
+  messageType: 'Invocation';
+  hubMethod: string;
+  invocationId?: string;
+  /** Must be a JSON array. Values may be primitives, arrays, or objects. */
+  arguments: unknown[];
+  useMessagePack: boolean;
+  sessionId?: string;
+}
+
+export interface EncodeAndSendResponse {
+  sentAt: string;
+  byteLength: number;
+  /** Populated when MessagePack encoding was used. */
+  wireFormatBase64?: string | null;
+  /** Populated when JSON-text encoding was used. */
+  rawText?: string | null;
+}
+
 export interface TrafficFilter {
   direction?: MessageDirection | '';
   type?: BlazorMessageType | '';

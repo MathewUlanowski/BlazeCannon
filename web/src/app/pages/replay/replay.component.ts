@@ -8,17 +8,22 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { HttpErrorResponse } from '@angular/common/http';
 import { RouterLink } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 import { ButtonModule } from 'primeng/button';
+import { InputTextModule } from 'primeng/inputtext';
 import { InputTextareaModule } from 'primeng/inputtextarea';
+import { InputSwitchModule } from 'primeng/inputswitch';
 import { MessageModule } from 'primeng/message';
+import { TabViewModule } from 'primeng/tabview';
 import { TagModule } from 'primeng/tag';
 import { TooltipModule } from 'primeng/tooltip';
 
 import {
   BlazorMessage,
+  EncodeAndSendRequest,
   ProxyStatus,
 } from '../../models/blazor-message.model';
 import { ProxyApiService } from '../../services/proxy-api.service';
@@ -33,8 +38,11 @@ import { SignalRService } from '../../services/signalr.service';
     FormsModule,
     RouterLink,
     ButtonModule,
+    InputTextModule,
     InputTextareaModule,
+    InputSwitchModule,
     MessageModule,
+    TabViewModule,
     TagModule,
     TooltipModule,
   ],
@@ -61,9 +69,19 @@ export class ReplayComponent implements OnInit {
 
   status: ProxyStatus | null = null;
 
-  sendResult: { ok: boolean; at?: string; error?: string } | null = null;
+  sendResult: { ok: boolean; at?: string; error?: string; info?: string } | null = null;
   sending = false;
   loadError: string | null = null;
+
+  // ---- Decoded-tab state ----------------------------------------------------
+
+  decodedHubMethod = '';
+  decodedInvocationId = '';
+  decodedArgsJson = '[]';
+  decodedUseMessagePack = false;
+  decodedJsonError: string | null = null;
+  decodedSendResult: { ok: boolean; at?: string; error?: string; info?: string } | null = null;
+  decodedSending = false;
 
   ngOnInit(): void {
     this.refreshStaged();
@@ -150,13 +168,29 @@ export class ReplayComponent implements OnInit {
     this.syncSelected();
     this.sessionTraffic = [];
     this.sendResult = null;
+    this.decodedSendResult = null;
   }
 
   private syncSelected(): void {
     this.selected =
       this.selectedIndex !== null ? (this.staged[this.selectedIndex] ?? null) : null;
     this.editedPayload = this.selected?.rawPayload ?? '';
+    this.primeDecodedForm();
     this.cdr.markForCheck();
+  }
+
+  private primeDecodedForm(): void {
+    const s = this.selected;
+    this.decodedHubMethod = s?.hubMethod ?? '';
+    this.decodedInvocationId = s?.invocationId ?? '';
+    const args = s?.decodedArguments ?? [];
+    try {
+      this.decodedArgsJson = JSON.stringify(args, null, 2);
+    } catch {
+      this.decodedArgsJson = '[]';
+    }
+    this.decodedUseMessagePack = !!s?.rawBinaryPayload;
+    this.decodedJsonError = null;
   }
 
   // ---- Staged actions ------------------------------------------------------
@@ -181,7 +215,7 @@ export class ReplayComponent implements OnInit {
     });
   }
 
-  // ---- Send ----------------------------------------------------------------
+  // ---- Send (raw tab) ------------------------------------------------------
 
   get isBinary(): boolean {
     return !!this.selected?.rawBinaryPayload;
@@ -228,6 +262,99 @@ export class ReplayComponent implements OnInit {
           ok: false,
           error: err?.message ?? 'Request failed',
         };
+        this.cdr.markForCheck();
+      },
+    });
+  }
+
+  // ---- Decoded tab ---------------------------------------------------------
+
+  /**
+   * True when the selected message is an Invocation and the Decoded tab is usable.
+   * Any other message type is out of scope for this release.
+   */
+  get decodedSupported(): boolean {
+    return this.selected?.messageType === 'Invocation';
+  }
+
+  get decodedSupportedTooltip(): string {
+    return this.decodedSupported
+      ? ''
+      : 'Decoded editing supports Invocation messages only in this release';
+  }
+
+  onDecodedArgsChange(value: string): void {
+    this.decodedArgsJson = value;
+    // Live parse so the user sees errors before hitting send.
+    try {
+      const parsed = JSON.parse(value);
+      if (!Array.isArray(parsed)) {
+        this.decodedJsonError = 'Arguments must be a JSON array.';
+      } else {
+        this.decodedJsonError = null;
+      }
+    } catch (e: unknown) {
+      this.decodedJsonError = (e as Error)?.message ?? 'Invalid JSON';
+    }
+  }
+
+  get canSendDecoded(): boolean {
+    return (
+      this.decodedSupported &&
+      !this.decodedSending &&
+      !!this.status &&
+      this.status.activeSessionCount > 0 &&
+      !this.decodedJsonError &&
+      !!this.decodedHubMethod.trim()
+    );
+  }
+
+  sendDecoded(): void {
+    if (!this.selected || !this.canSendDecoded) return;
+
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(this.decodedArgsJson);
+    } catch (e: unknown) {
+      this.decodedJsonError = (e as Error)?.message ?? 'Invalid JSON';
+      return;
+    }
+    if (!Array.isArray(parsed)) {
+      this.decodedJsonError = 'Arguments must be a JSON array.';
+      return;
+    }
+
+    const body: EncodeAndSendRequest = {
+      messageType: 'Invocation',
+      hubMethod: this.decodedHubMethod.trim(),
+      invocationId: this.decodedInvocationId.trim() || undefined,
+      arguments: parsed as unknown[],
+      useMessagePack: this.decodedUseMessagePack,
+      sessionId: this.selected.sessionId,
+    };
+
+    this.decodedSending = true;
+    this.decodedSendResult = null;
+
+    this.replayApi.encodeAndSend(body).subscribe({
+      next: (r) => {
+        this.decodedSending = false;
+        const wire = body.useMessagePack ? 'MessagePack' : 'text';
+        this.decodedSendResult = {
+          ok: true,
+          at: r.sentAt,
+          info: `Sent ${r.byteLength} bytes via ${wire}`,
+        };
+        this.cdr.markForCheck();
+      },
+      error: (err: unknown) => {
+        this.decodedSending = false;
+        const httpErr = err as HttpErrorResponse;
+        const msg =
+          httpErr?.error?.error ??
+          httpErr?.message ??
+          'Request failed';
+        this.decodedSendResult = { ok: false, error: msg };
         this.cdr.markForCheck();
       },
     });

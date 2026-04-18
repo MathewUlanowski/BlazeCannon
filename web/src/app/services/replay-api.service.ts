@@ -1,7 +1,12 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
-import { BlazorMessage, ReplaySendResult } from '../models/blazor-message.model';
+import {
+  BlazorMessage,
+  EncodeAndSendRequest,
+  EncodeAndSendResponse,
+  ReplaySendResult,
+} from '../models/blazor-message.model';
 
 @Injectable({ providedIn: 'root' })
 export class ReplayApiService {
@@ -25,5 +30,14 @@ export class ReplayApiService {
 
   send(message: BlazorMessage): Observable<ReplaySendResult> {
     return this.http.post<ReplaySendResult>('/api/replay/send', message);
+  }
+
+  encodeAndSend(
+    body: EncodeAndSendRequest,
+  ): Observable<EncodeAndSendResponse> {
+    return this.http.post<EncodeAndSendResponse>(
+      '/api/replay/encode-and-send',
+      body,
+    );
   }
 }

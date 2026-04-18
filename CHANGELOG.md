@@ -6,6 +6,19 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-04-18
+
+### Added
+- **Replay page — Decoded editor tab.** For `Invocation` messages you can now edit the hub method, invocation ID, and arguments (as a JSON array with live validation) in a human-readable form, then send them back through the live MITM WebSocket session. A **Use MessagePack** toggle defaults on for binary messages and off for text — match what the target expects. Disabled for non-Invocation message types this release; a future release will expand coverage.
+- **`POST /api/replay/encode-and-send`** — server-side encoding endpoint. Accepts `{ messageType, hubMethod, invocationId, arguments[], useMessagePack, sessionId }`, encodes the frame, and pipes it through the existing replay path. Returns `{ sentAt, byteLength, wireFormatBase64, rawText }` for auditability. Structured errors: 400 for malformed requests (non-Invocation type, empty hubMethod, non-array arguments), 409 for no-active-session.
+- **`BlazorProtocolEncoder.EncodeInvocationMessagePack`** and `EncodeInvocationText` — first-class SignalR frame builders for Invocations. The MessagePack path produces `[VarInt length][MessagePack array]` frames byte-compatible with what Blazor Server's `blazorpack` hub expects; the text path produces a `{…}\x1E`-terminated JSON frame for text-protocol hubs. Decoder round-trip verified.
+
+### Known gaps (deferred)
+- Decoded editing only supports **Invocation**. StreamItem / Completion / StreamInvocation / CancelInvocation / Ping / Close / Handshake are rejected with a 400 and shown as a disabled tab in the UI.
+- MessagePack extension types (custom ext, DateTime ext-255) not in the encoder — avoid injecting extension-typed values.
+- Binary (`bin`) arguments can't be expressed through the JSON textarea; the Raw tab is still the path for raw-byte tweaks.
+- `streamIds` is always emitted as `[]` — no streaming support.
+
 ## [0.4.1] - 2026-04-18
 
 ### Documentation
